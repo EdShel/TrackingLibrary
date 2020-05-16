@@ -29,7 +29,7 @@ namespace TrackingLibrary
     /// <summary>
     /// Provides service for serialization of dynamic objects.
     /// </summary>
-    internal static class ObjectSerializer
+    public static class ObjectSerializer
     {
         private static CultureInfo culture = CultureInfo.InvariantCulture;
 
@@ -57,7 +57,7 @@ namespace TrackingLibrary
         /// </summary>
         public static string SerializeXML(object obj)
         {
-            return DynamicHelper.ToXmlString(obj);
+            return DynamicHelper.ToXml(obj, "event").ToString();
         }
 
         /// <summary>

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -25,7 +24,7 @@ namespace TrackingLibrary
             {
                 [Serialization.CSV] = "text/csv",
                 [Serialization.Json] = "application/json",
-                [Serialization.CSV] = "application/xml"
+                [Serialization.XML] = "application/xml"
             };
 
         /// <summary>
@@ -69,7 +68,6 @@ namespace TrackingLibrary
         {
             try
             {
-                HttpWebResponse responce;
                 HttpWebRequest req = WebRequest.CreateHttp(uri);
                 req.Method = USED_HTTP_METHOD;
                 req.ContentLength = whatToSend.Length;
@@ -81,10 +79,10 @@ namespace TrackingLibrary
                     dataStream.Write(whatToSend, 0, whatToSend.Length);
                 }
 
-                // Get responce
-                responce = req.GetResponse() as HttpWebResponse;
+                // Get response
+                HttpWebResponse response = req.GetResponse() as HttpWebResponse;
 
-                return responce.StatusCode != HttpStatusCode.OK;
+                return response.StatusCode != HttpStatusCode.OK;
             }
             catch
             {
