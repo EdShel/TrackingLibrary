@@ -33,71 +33,21 @@ namespace TrackingLibrary
         /// </summary>
         public static EventSenderOptions DefaultOptions { set; get; } = new EventSenderOptions();
 
-        public static bool BatchEvent(object eventObj, EventSenderOptions options)
+        /// <summary>
+        /// Puts event into the file in the folder specified in options.
+        /// If the number of files exceeds EventBatchSize, events will be sent
+        /// to the server. 
+        /// If the number of files exceeds MaxOfflineSavedEvents, the oldest event
+        /// files will be deleted.
+        /// </summary>
+        /// <param name="eventObj">Event to add to batch.</param>
+        /// <param name="options">Options to use.</param>
+        /// <returns>Whether the events were successfully sent to the server.</returns>
+        public static bool BatchEventToSend(object eventObj, EventSenderOptions options)
         {
-            // Get batched files
-            List<FileInfo> batchedEventsFiles = Directory
-                .GetFiles(options.EventBatchesDirectory)
-                .Select(filePath => new FileInfo(filePath))
-                .ToList();
-
-            // If there is an overflow of events (ready to send)
-            if (batchedEventsFiles.Count + 1 >= options.EventBatchSize)
-            {
-                // Deserialize binary files & append to them new event
-                List<object> events = batchedEventsFiles
-                    .Select(file =>
-                    {
-                        using (var eventFileReader =
-                            new FileStream(file.FullName, FileMode.Open, FileAccess.Read))
-                        {
-                            using (var binaryReader = new BinaryReader(eventFileReader))
-                            {
-                                return binaryReader.Deserialize();
-                            }
-                        }
-                    })
-                    .Union(new[] { eventObj })
-                    .ToList();
-
-                // Serialize this object
-                string serialized = ObjectSerializer.Serialize(events, options.Serialization);
-
-                // Send data
-                bool sent = SendDataToServer(
-                    uri: options.ServerUri,
-                    whatToSend: options.DataEncoding.GetBytes(serialized),
-                    mimeType: ContentTypes[options.Serialization]);
-
-                // If the server accepted the events
-                if (sent)
-                {
-                    // Delete the files as they ain't needed
-                    batchedEventsFiles
-                        .ForEach(file => File.Delete(file.FullName));
-
-                    return true;
-                }
-
-                // Delete the oldest events to fit into the required size
-                while (batchedEventsFiles.Count + 1 >= options.MaxOfflineSavedEvents)
-                {
-                    var theOldestFile = batchedEventsFiles
-                        .Aggregate((leastRecent, x) =>
-                            leastRecent == null ||
-                                x.CreationTime < leastRecent.CreationTime
-                                ? x
-                                : leastRecent);
-
-                    batchedEventsFiles.Remove(theOldestFile);
-
-                    File.Delete(theOldestFile.FullName);
-                }
-            }
-
             // Write this event to a new file
             var eventFile = Path.Combine(
-                path1: options.EventBatchesDirectory, 
+                path1: options.EventBatchesDirectory,
                 path2: Guid.NewGuid().ToString());
 
             using (var wr = new BinaryWriter(File.Open(eventFile, FileMode.CreateNew)))
@@ -105,7 +55,110 @@ namespace TrackingLibrary
                 wr.Serialize(eventObj);
             }
 
+            // Get batched files
+            List<FileInfo> batchedEventsFiles = GetBatchedEventsFiles(options);
+
+            // If there is an overflow of events (ready to send)
+            if (batchedEventsFiles.Count + 1 >= options.EventBatchSize)
+            {
+                bool sent = BatchSendNow(options);
+
+                // If the server accepted the events
+                if (sent)
+                {
+                    // Delete the files as they ain't needed
+                    BatchFolderClear(options);
+
+                    return true;
+                }
+
+                BatchTruncate(options);
+            }
+
             return false;
+        }
+
+        /// <summary>
+        /// Deletes all the batched files from batching folder.
+        /// </summary>
+        /// <param name="options">Options to use.</param>
+        public static void BatchFolderClear(EventSenderOptions options)
+        {
+            GetBatchedEventsFiles(options).ForEach(file => File.Delete(file.FullName));
+        }
+
+        /// <summary>
+        /// Sends all the events written in the batch.
+        /// Note: this method does not delete batch files,
+        /// so you need do it manually by calling BatchFolderClear.
+        /// </summary>
+        /// <returns>Whether the server accepted these events.</returns>
+        public static bool BatchSendNow(EventSenderOptions options)
+        {
+            // Deserialize binary files & append to them new event
+            List<object> events = GetBatchedEventsFiles(options)
+                .Select(file =>
+                {
+                    using (var eventFileReader =
+                        new FileStream(file.FullName, FileMode.Open, FileAccess.Read))
+                    {
+                        using (var binaryReader = new BinaryReader(eventFileReader))
+                        {
+                            return binaryReader.Deserialize();
+                        }
+                    }
+                })
+                .ToList();
+
+            // Serialize this object
+            string serialized = ObjectSerializer.Serialize(events, options.Serialization);
+
+            // Send data
+            bool sent = SendDataToServer(
+                uri: options.ServerUri,
+                whatToSend: options.DataEncoding.GetBytes(serialized),
+                mimeType: ContentTypes[options.Serialization]);
+            return sent;
+        }
+
+        /// <summary>
+        /// Deletes old batched events in order to fit into 
+        /// their max count.
+        /// </summary>
+        /// <param name="options">Options to use.</param>
+        /// <returns>How many event files has been deleted.</returns>
+        private static int BatchTruncate(EventSenderOptions options)
+        {
+            int deleted = 0;
+            List<FileInfo> batchedEventsFiles = GetBatchedEventsFiles(options);
+
+            // Delete the oldest events to fit into the required size
+            while (batchedEventsFiles.Count >= options.MaxOfflineSavedEvents)
+            {
+                var theOldestFile = batchedEventsFiles
+                    .Aggregate((leastRecent, x) =>
+                        leastRecent == null ||
+                            x.CreationTime < leastRecent.CreationTime
+                            ? x
+                            : leastRecent);
+
+                batchedEventsFiles.Remove(theOldestFile);
+
+                File.Delete(theOldestFile.FullName);
+                deleted++;
+            }
+
+            return deleted;
+        }
+
+        /// <summary>
+        /// Returns all the events written in the batching folder.
+        /// </summary>
+        private static List<FileInfo> GetBatchedEventsFiles(EventSenderOptions options)
+        {
+            return Directory.GetFiles(options.EventBatchesDirectory)
+                            .Select(filePath => new FileInfo(filePath))
+                            .ToList();
         }
 
         /// <summary>

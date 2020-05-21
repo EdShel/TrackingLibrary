@@ -12,8 +12,10 @@ namespace ClientExample
         {
             Console.WriteLine("Starting...");
 
+            // Create options object
             var options = new EventSenderOptions
             {
+                ServerUri = new Uri(@"http://localhost:8000"),
                 EventBatchesDirectory = @"C:\Users\Admin\Desktop\batches",
                 Serialization = Serialization.XML
             };
@@ -24,39 +26,10 @@ namespace ClientExample
                 Hello = "Lol",
                 World = 123,
             };
-
-            EventSender.BatchEvent(obj, options);
-
-            //BinarySerializationExample(obj);
+            EventSender.BatchEventToSend(obj, options);
 
             Console.WriteLine("Done");
             Console.Read();
-        }
-
-        private static void BinarySerializationExample(object obj)
-        {
-
-            // Binary serialiation
-            using (var str = new FileStream(@"C:\Users\Admin\Desktop\test.txt", FileMode.Create, FileAccess.ReadWrite))
-            {
-                using (var wr = new BinaryWriter(str))
-                {
-                    BinarySerializator.Serialize(wr, obj);
-                }
-            }
-
-            dynamic deserialized;
-
-            // Binary deserialization
-            using (var str = new FileStream(@"C:\Users\Admin\Desktop\test.txt", FileMode.Open, FileAccess.ReadWrite))
-            {
-                using (var wr = new BinaryReader(str))
-                {
-                    deserialized = BinarySerializator.Deserialize(wr);
-                }
-            }
-
-            Console.WriteLine(deserialized.Hello);
         }
     }
 }

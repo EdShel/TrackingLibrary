@@ -14,7 +14,7 @@ namespace TrackingLibrary
     /// Combines primitive types (enums and IEnumerable too)
     /// and creates ExpandoObject.
     /// </summary>
-    public static class BinarySerializator
+    internal static class BinarySerializator
     {
         /// <summary>
         /// Writes specified object using binary writer.
