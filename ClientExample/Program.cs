@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Dynamic;
 using System.IO;
 using TrackingLibrary;
 
@@ -8,13 +10,31 @@ namespace ClientExample
     {
         static void Main(string[] args)
         {
+            Console.WriteLine("Starting...");
+
+            var options = new EventSenderOptions
+            {
+                EventBatchesDirectory = @"C:\Users\Admin\Desktop\batches",
+                Serialization = Serialization.XML
+            };
+
             // Create an object
             var obj = new
             {
                 Hello = "Lol",
                 World = 123,
-                Lol = new float[] { 1.2f, 2.4f }
             };
+
+            EventSender.BatchEvent(obj, options);
+
+            //BinarySerializationExample(obj);
+
+            Console.WriteLine("Done");
+            Console.Read();
+        }
+
+        private static void BinarySerializationExample(object obj)
+        {
 
             // Binary serialiation
             using (var str = new FileStream(@"C:\Users\Admin\Desktop\test.txt", FileMode.Create, FileAccess.ReadWrite))
@@ -37,7 +57,6 @@ namespace ClientExample
             }
 
             Console.WriteLine(deserialized.Hello);
-            Console.Read();
         }
     }
 }

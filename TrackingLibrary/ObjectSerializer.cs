@@ -1,7 +1,9 @@
 ﻿using CsvHelper;
 using Newtonsoft.Json.Linq;
+using System.Collections;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 
 namespace TrackingLibrary
 {
@@ -57,7 +59,11 @@ namespace TrackingLibrary
         /// </summary>
         public static string SerializeXML(object obj)
         {
-            return DynamicHelper.ToXml(obj, "event").ToString();
+            if (obj is IEnumerable col)
+            {
+                return DynamicHelper.ToXML(new { els = col.Cast<object>().ToArray() }, "eventsArray").ToString();
+            }
+            return DynamicHelper.ToXML(obj, "event").ToString();
         }
 
         /// <summary>
@@ -65,6 +71,10 @@ namespace TrackingLibrary
         /// </summary>
         public static string SerializeJson(object obj)
         {
+            if (obj is IEnumerable)
+            {
+                return JArray.FromObject(obj).ToString();
+            }
             return JObject.FromObject(obj).ToString();
         }
 
@@ -77,7 +87,11 @@ namespace TrackingLibrary
             {
                 using (var csv = new CsvWriter(writer, culture))
                 {
-                    csv.WriteRecords(new[] { obj });
+                    IEnumerable records = obj is IEnumerable col
+                        ? col
+                        : new[] { obj };
+
+                    csv.WriteRecords(records);
 
                     return writer.ToString();
                 }

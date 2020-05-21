@@ -40,7 +40,7 @@ namespace TrackingLibrary
                 wr.Write((int)obj);
             }
             // IEnumerable types
-            else if (type.IsArray || typeof(IEnumerable).IsAssignableFrom(type))
+            else if (typeof(IEnumerable).IsAssignableFrom(type))
             {
                 wr.WriteCollection(obj);
             }
@@ -76,7 +76,7 @@ namespace TrackingLibrary
                     return Enum.ToObject(type, rd.ReadInt32());
                 }
                 // IEnumerable types and arrays
-                else if (type.IsArray || typeof(IEnumerable).IsAssignableFrom(type))
+                else if (typeof(IEnumerable).IsAssignableFrom(type))
                 {
                     return rd.ReadCollection();
                 }
