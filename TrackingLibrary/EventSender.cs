@@ -211,7 +211,7 @@ namespace TrackingLibrary
                 // Get response
                 HttpWebResponse response = req.GetResponse() as HttpWebResponse;
 
-                return response.StatusCode != HttpStatusCode.OK;
+                return response.StatusCode == HttpStatusCode.OK;
             }
             catch
             {

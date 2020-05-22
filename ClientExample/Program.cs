@@ -26,7 +26,11 @@ namespace ClientExample
                 Hello = "Lol",
                 World = 123,
             };
-            EventSender.BatchEventToSend(obj, options);
+
+            if (EventSender.BatchEventToSend(obj, options))
+            {
+                Console.WriteLine("Server accepted!");
+            }
 
             Console.WriteLine("Done");
             Console.Read();
