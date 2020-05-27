@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
+using System.Text;
 using TrackingLibrary;
 
 namespace ClientExample
@@ -17,7 +18,8 @@ namespace ClientExample
             {
                 ServerUri = new Uri(@"http://localhost:8000"),
                 EventBatchesDirectory = @"C:\Users\Admin\Desktop\batches",
-                Serialization = Serialization.XML
+                Serialization = Serialization.XML,
+                DataEncoding = Encoding.ASCII
             };
 
             // Create an object
@@ -33,7 +35,6 @@ namespace ClientExample
             }
 
             Console.WriteLine("Done");
-            Console.Read();
         }
     }
 }

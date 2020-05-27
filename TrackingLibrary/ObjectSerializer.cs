@@ -1,6 +1,9 @@
 ﻿using CsvHelper;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Collections;
+using System.Collections.Generic;
+using System.Dynamic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -31,7 +34,7 @@ namespace TrackingLibrary
     /// <summary>
     /// Provides service for serialization of dynamic objects.
     /// </summary>
-    internal static class ObjectSerializer
+    public static class ObjectSerializer
     {
         private static CultureInfo culture = CultureInfo.InvariantCulture;
 
@@ -61,9 +64,9 @@ namespace TrackingLibrary
         {
             if (obj is IEnumerable col)
             {
-                return DynamicHelper.ToXML(new { els = col.Cast<object>().ToArray() }, "eventsArray").ToString();
+                return XMLSerializer.ToXML(col.Cast<object>().ToArray(), "eventsArray").ToString();
             }
-            return DynamicHelper.ToXML(obj, "event").ToString();
+            return XMLSerializer.ToXML(obj, "event").ToString();
         }
 
         /// <summary>
@@ -75,7 +78,15 @@ namespace TrackingLibrary
             {
                 return JArray.FromObject(obj).ToString();
             }
-            return JObject.FromObject(obj).ToString();
+            return JArray.FromObject(new object[] { obj }).ToString();
+        }
+
+        public static IEnumerable<object> DeserializeJson(string json)
+        {
+            //return (JArray.Parse(json) as IEnumerable)
+            //    .Cast<object>();
+            var o = JsonConvert.DeserializeObject<ExpandoObject[]>(json);
+            return o;
         }
 
         /// <summary>
@@ -94,6 +105,23 @@ namespace TrackingLibrary
                     csv.WriteRecords(records);
 
                     return writer.ToString();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Deserializes from CSV.
+        /// </summary>
+        public static IEnumerable<object> DeserializeCSV(string csv)
+        {
+            using (var reader = new StringReader(csv))
+            {
+                using (var r = new CsvReader(reader, culture))
+                {
+                    while (r.Read())
+                    {
+                        yield return r.GetRecord<dynamic>();
+                    }
                 }
             }
         }
