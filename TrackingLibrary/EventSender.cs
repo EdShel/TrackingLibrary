@@ -59,7 +59,7 @@ namespace TrackingLibrary
             List<FileInfo> batchedEventsFiles = GetBatchedEventsFiles(options);
 
             // If there is an overflow of events (ready to send)
-            if (batchedEventsFiles.Count + 1 >= options.EventBatchSize)
+            if (batchedEventsFiles.Count >= options.EventBatchSize)
             {
                 bool sent = BatchSendNow(options);
 

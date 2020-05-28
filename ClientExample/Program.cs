@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Dynamic;
-using System.IO;
-using System.Text;
 using TrackingLibrary;
 
 namespace ClientExample
@@ -71,8 +67,6 @@ namespace ClientExample
             {
                 Console.WriteLine($"Server accepted when sending {nameof(complexOne)}!");
             }
-
-
 
             Console.WriteLine("Done");
         }

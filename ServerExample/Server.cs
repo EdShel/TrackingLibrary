@@ -175,10 +175,6 @@ namespace ServerExample
                 {
                     newDict.TryAdd(prop.Key, prop.Value);
                 }
-                else
-                {
-                    Console.WriteLine($"Ignored {prop.Key}");
-                }
             }
             flat = newDict;
             return flat;
