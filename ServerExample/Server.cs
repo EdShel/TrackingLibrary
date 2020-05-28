@@ -1,17 +1,13 @@
-﻿using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Data.Common;
+using System.Configuration;
+using System.Data.SqlClient;
+using System.Dynamic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using TrackingLibrary;
-using System.Data.SqlClient;
-using System.Configuration;
-using System.Text;
-using System.Dynamic;
-using System.Linq;
-using System.Data;
 
 namespace ServerExample
 {
@@ -30,12 +26,12 @@ namespace ServerExample
         /// <summary>
         /// Connection string for the db where to add events.
         /// </summary>
-        private string dbConnectionString = ConfigurationManager.ConnectionStrings["events"].ConnectionString;
+        private readonly string dbConnectionString = ConfigurationManager.ConnectionStrings["events"].ConnectionString;
 
         /// <summary>
         /// Stores serialization formats with their MIME types.
         /// </summary>
-        private static IDictionary<string, Serialization> ContentTypes =
+        private static readonly IDictionary<string, Serialization> ContentTypes =
             new Dictionary<string, Serialization>
             {
                 ["text/csv"] = Serialization.CSV,
@@ -55,13 +51,9 @@ namespace ServerExample
             {
                 throw new ArgumentNullException(nameof(sqlDbConnectionString));
             }
-            if (opt == null)
-            {
-                throw new ArgumentNullException(nameof(opt));
-            }
 
             dbConnectionString = sqlDbConnectionString;
-            options = opt;
+            options = opt ?? throw new ArgumentNullException(nameof(opt));
         }
 
         /// <summary>
@@ -82,6 +74,7 @@ namespace ServerExample
         /// You can find them in <see cref="Server.ContentTypes"/>.</param>
         private void ProcessRequest(string str, string contentType)
         {
+
             // Find serialization for this MIME type
             Serialization type = ContentTypes[contentType];
 
@@ -101,6 +94,11 @@ namespace ServerExample
 
                         // Find the table for this object
                         string tableName = PrepareTableForInsert(flat);
+
+                        if (!options.IncludeEventNameAsTableProperty)
+                        {
+                            flat = RemoveTableNameProperties(flat);
+                        }
 
                         // Get insert command
                         var insert = SqlDynamic.GetInsert(tableName, flat, db);
@@ -126,13 +124,22 @@ namespace ServerExample
         /// All the values must return true when
         /// called on <see cref="SqlDynamic.IsSupportedType(Type)"/>.</param>
         /// <returns>Table name to which this object must be inserted.</returns>
-        public string PrepareTableForInsert(IDictionary<string, object> flat)
+        private string PrepareTableForInsert(IDictionary<string, object> flat)
         {
             var db = new SqlConnection(dbConnectionString);
             db.Open();
 
             // Find out table name for this event
             string tableName = GetTableName(flat);
+
+
+            // If not include table names
+            if (!options.IncludeEventNameAsTableProperty)
+            {
+                // Leave only not names
+
+                flat = RemoveTableNameProperties(flat);
+            }
 
             // If table is not created yet
             if (!SqlDynamic.IsTableCreated(tableName, db))
@@ -141,7 +148,7 @@ namespace ServerExample
                 var createCommand = db.CreateCommand();
 
                 createCommand.CommandText = SqlDynamic.CreateTableCommand(
-                    name: tableName, 
+                    name: tableName,
                     idCol: options.EventPrimaryKeyColumn,
                     scheme: flat.ToDictionary(k => k.Key, v => v.Value.GetType()));
 
@@ -157,20 +164,41 @@ namespace ServerExample
         }
 
         /// <summary>
+        /// Removes properties that correspond to table names
+        /// </summary>
+        private IDictionary<string, object> RemoveTableNameProperties(IDictionary<string, object> flat)
+        {
+            var newDict = new ExpandoObject();
+            foreach (var prop in flat)
+            {
+                if (!options.TableNameProperties.Contains(prop.Key))
+                {
+                    newDict.TryAdd(prop.Key, prop.Value);
+                }
+                else
+                {
+                    Console.WriteLine($"Ignored {prop.Key}");
+                }
+            }
+            flat = newDict;
+            return flat;
+        }
+
+        /// <summary>
         /// Retrieves table name from the properties of the object
         /// or generates new name using object's scheme.
-        /// The first-priority names are written in the <see cref="ServerOptions.EventPropertiesForSqlTable"/>
+        /// The first-priority names are written in the <see cref="ServerOptions.TableNameProperties"/>
         /// </summary>
         /// <param name="flat">Dictionary with keys as object's
         /// properties, values as values of these properties.
         /// All the values must return true when
         /// called on <see cref="SqlDynamic.IsSupportedType(Type)"/>.</param>
         /// <returns>Table name to which this object must be inserted.</returns>
-        public string GetTableName(IDictionary<string, object> flat)
+        private string GetTableName(IDictionary<string, object> flat)
         {
             // Try to find this event in predefined table name properties
             var predefName = flat.FirstOrDefault(
-                s => s.Value is string && options.EventPropertiesForSqlTable.Contains(s.Key));
+                s => s.Value is string && options.TableNameProperties.Contains(s.Key));
 
             // If found
             if (!predefName.Equals(default))
@@ -184,9 +212,11 @@ namespace ServerExample
             int hash = 0;
             foreach (var prop in sorted)
             {
-
-                hash ^= prop.Key.FirstOrDefault() ^ (prop.Value.GetType().FullName.Length << 4);
-                hash <<= 1;
+                if (options.IncludeEventNameAsTableProperty || !options.TableNameProperties.Contains(prop.Key))
+                {
+                    hash ^= prop.Key.FirstOrDefault() ^ (prop.Value.GetType().FullName.Length << 4);
+                    hash <<= 1;
+                }
             }
 
             return $"event{hash}";
@@ -233,17 +263,32 @@ namespace ServerExample
 
                 try
                 {
+
+#if DEBUG
+                    Console.WriteLine($"[{DateTime.Now.ToString("hh:mm:ss")}] Started processing request {request.ContentType}");
+                    Console.WriteLine(str);
+#endif
+
                     // Process it
                     ProcessRequest(str, request.ContentType);
 
                     // Put here a little present for him with "OK" message.
                     response.StatusCode = (int)HttpStatusCode.OK;
                     responseString = "OK";
+
+#if DEBUG
+                    Console.WriteLine($"[{DateTime.Now.ToString("hh:mm:ss")}] Everything is OK");
+#endif
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     response.StatusCode = (int)HttpStatusCode.UnprocessableEntity;
                     responseString = ex.Message;
+
+
+#if DEBUG
+                    Console.WriteLine($"[{DateTime.Now.ToString("hh:mm:ss")}] {ex}");
+#endif
                 }
                 finally
                 {
@@ -257,6 +302,10 @@ namespace ServerExample
                     Stream output = response.OutputStream;
                     output.Write(buffer, 0, buffer.Length);
                     output.Close();
+
+#if DEBUG
+                    Console.WriteLine($"~-~-~-~-~-~-~-~-~-~-~-~-~-");
+#endif
                 }
 
             }

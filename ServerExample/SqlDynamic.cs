@@ -1,19 +1,11 @@
-﻿using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Data.Common;
-using System.IO;
-using System.Net;
-using System.Threading.Tasks;
-using TrackingLibrary;
+using System.ComponentModel;
 using System.Data.SqlClient;
-using System.Configuration;
-using System.Text;
 using System.Dynamic;
 using System.Linq;
-using System.Data;
-using System.Collections;
-using System.ComponentModel;
+using System.Text;
 
 namespace ServerExample
 {
@@ -36,13 +28,15 @@ namespace ServerExample
         public static SqlCommand GetInsert(string tableName, IDictionary<string, object> obj, SqlConnection db)
         {
             // Create Insert command
-            string command = GetInsertCommand(tableName, obj);
+            string command = GetInsertCommand(tableName, obj, out IDictionary<string, string> paramTrans);
 
             // Populate its parameters
             var c = db.CreateCommand();
+            c.CommandText = command;
+
             foreach (var prop in obj)
             {
-                c.Parameters.Add(new SqlParameter($"@{prop}", prop.Value));
+                c.Parameters.Add(new SqlParameter(paramTrans[prop.Key], prop.Value));
             }
 
             return c;
@@ -55,11 +49,11 @@ namespace ServerExample
         /// <param name="tableName">Table to which it must be inserted.</param>
         /// <param name="props">Flattened object.</param>
         /// <returns>String with the command.</returns>
-        private static string GetInsertCommand(string tableName, IDictionary<string, object> props)
+        private static string GetInsertCommand(string tableName, IDictionary<string, object> props, out IDictionary<string, string> paramTrans)
         {
             var sb = new StringBuilder();
 
-            sb.Append($"INSERT INTO ${tableName}(");
+            sb.Append($"INSERT INTO {tableName}(");
 
             bool isFirst = true;
             foreach (var prop in props.Keys)
@@ -72,13 +66,18 @@ namespace ServerExample
                 {
                     isFirst = false;
                 }
+                sb.Append('"');
                 sb.Append(prop);
+                sb.Append('"');
             }
 
             isFirst = true;
             sb.Append(") VALUES(");
 
-            foreach (var prop in props)
+            paramTrans = new Dictionary<string, string>(props.Count);
+
+            int i = 0;
+            foreach (var prop in props.Keys)
             {
                 if (isFirst)
                 {
@@ -88,11 +87,41 @@ namespace ServerExample
                 {
                     sb.Append(',');
                 }
-                sb.Append('@');
-                sb.Append(prop);
+
+                string paramName = GetParamName(i++);
+                paramTrans[prop] = paramName;
+
+                sb.Append(paramName);
             }
 
             sb.Append(")");
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Generates property name by the index.
+        /// </summary>
+        private static string GetParamName(int indx)
+        {
+            if (indx == 0)
+            {
+                return "@a";
+            }
+
+            const int min = 'a';
+            const int max = 'z';
+            const int range = max - min;
+
+            StringBuilder sb = new StringBuilder();
+            sb.Append("@");
+
+            while(indx != 0)
+            {
+                char c = (char)('a' + (indx % range));
+                sb.Append(c);
+                indx /= range;
+            }
 
             return sb.ToString();
         }
@@ -221,7 +250,7 @@ namespace ServerExample
         {
             var sb = new StringBuilder();
             sb.Append($"CREATE TABLE \"{name}\" (\n");
-            sb.Append($"{idCol} int PRIMARY KEY");
+            sb.Append($"{idCol} int PRIMARY KEY IDENTITY(1,1)");
 
             foreach (string prop in scheme.Keys)
             {
@@ -318,11 +347,16 @@ namespace ServerExample
         /// <returns>Whether the table exists in the db.</returns>
         public static bool IsTableCreated(string tableName, SqlConnection db)
         {
+            if (string.IsNullOrEmpty(tableName))
+            {
+                throw new ArgumentNullException(nameof(tableName));
+            }
+
             var command = db.CreateCommand();
             command.CommandText =
                    "SELECT 1 "
                  + "FROM INFORMATION_SCHEMA.TABLES "
-                 + "WHERE TABLE_NAME = '@name';";
+                 + "WHERE TABLE_NAME = @name;";
 
             command.Parameters.Add("@name", System.Data.SqlDbType.NVarChar);
 

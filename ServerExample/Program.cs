@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Configuration;
 using System.Linq;
 using TrackingLibrary;
 
@@ -8,25 +9,18 @@ namespace ServerExample
     {
         static void Main(string[] args)
         {
-            var d = new
+            Console.WriteLine("Server started");
+
+            var options = new ServerOptions("http://localhost:8000")
             {
-                Name = "Lol",
-                Fuck = 1,
+                EventPrimaryKeyColumn = "Id",
             };
 
-            var x = new object[] { d, d, d };
+            string dbConnectionStr = ConfigurationManager.ConnectionStrings["events"].ConnectionString;
 
-            Console.WriteLine(ObjectSerializer.SerializeXML(x));
-            var o = ObjectSerializer.DeserializeXML(ObjectSerializer.SerializeXML(x));
+            Server server = new Server(dbConnectionStr, options);
 
-            Console.WriteLine(o);
-            //Server server = new Server();
-
-            //server.PrepareTableForInsert(d.ToDictionary());
-
-            //server.Run();
-
-            // Do another stuff
+            server.Run().Wait();
         }
     }
 }

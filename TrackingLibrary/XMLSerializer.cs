@@ -2,14 +2,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Dynamic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Xml;
 using System.Xml.Linq;
-using System.Xml.Schema;
-using System.Xml.Serialization;
 
 namespace TrackingLibrary
 {
@@ -90,6 +87,7 @@ namespace TrackingLibrary
                     val = prop.Value;
                     value = prop.Value.GetType().IsSimpleType() ? new XElement(name, val) : val.ToXML(name);
                 }
+                elements.Add(value);
             }
 
             ret.Add(elements);

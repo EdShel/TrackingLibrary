@@ -87,9 +87,9 @@ namespace TrackingLibrary
         {
             if (obj is IEnumerable col)
             {
-                return XMLSerializer.ToXML(col.Cast<object>().ToArray(), "eventsArray").ToString();
+                return XMLSerializer.ToXML(col, "eventsArray").ToString();
             }
-            return XMLSerializer.ToXML(obj, "event").ToString();
+            return XMLSerializer.ToXML(new object[] { obj }, "eventsArray").ToString();
         }
 
         /// <summary>
@@ -100,7 +100,13 @@ namespace TrackingLibrary
         {
             XDocument doc = XDocument.Parse(xml);
             string jsonText = JsonConvert.SerializeXNode(doc, Formatting.None, true);
-            return ExtractProperty(JsonConvert.DeserializeObject<ExpandoObject>(jsonText)) as IEnumerable<object>;
+            var prop = ExtractProperty(JsonConvert.DeserializeObject<ExpandoObject>(jsonText));
+            if (prop is IDictionary<string, object> d)
+            {
+                prop = new object[] { d };
+            }
+
+            return prop as IEnumerable<object>;
         }
 
         /// <summary>

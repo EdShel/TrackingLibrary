@@ -39,7 +39,14 @@ namespace ServerExample
         /// also the server won't need to generate the name on its own which may
         /// reduce some bugs and ambiguities with different events having the same properties.
         /// </summary>
-        public List<string> EventPropertiesForSqlTable { set; get; } = new List<string> { "EventName", "EventId" };
+        public List<string> TableNameProperties { set; get; } = new List<string> { "EventName", "EventId" };
+
+        /// <summary>
+        /// If true, the table of events will contain the name of the event.
+        /// In other words, there will be a column which holds the table name.
+        /// It's recommended to turn it off in order to save disk space.
+        /// </summary>
+        public bool IncludeEventNameAsTableProperty { set; get; } = false;
 
         /// <summary>
         /// This property will be used as Primary key in all the tables with events.
