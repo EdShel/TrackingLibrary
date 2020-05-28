@@ -7,6 +7,7 @@ using System.Dynamic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Xml.Linq;
 
 namespace TrackingLibrary
 {
@@ -58,8 +59,30 @@ namespace TrackingLibrary
         }
 
         /// <summary>
+        /// Deserializes events as the COLLECTION of the dynamic objects.
+        /// </summary>
+        /// <param name="str">String with the serialized events.
+        /// It has to be a collection!!!</param>
+        /// <param name="serialization">How to do it.</param>
+        /// <returns>Collection of dynamic objects.</returns>
+        public static IEnumerable<object> Deserialize(string str, Serialization serialization)
+        {
+            switch (serialization)
+            {
+                case Serialization.CSV:
+                    return DeserializeCSV(str);
+                case Serialization.Json:
+                    return DeserializeJson(str);
+                case Serialization.XML:
+                    return DeserializeXML(str);
+                default: throw new System.Exception("Unknown serialization!");
+            }
+        }
+
+        /// <summary>
         /// Serializes to xml.
         /// </summary>
+        /// <returns>XML array of events.</returns>
         public static string SerializeXML(object obj)
         {
             if (obj is IEnumerable col)
@@ -70,8 +93,20 @@ namespace TrackingLibrary
         }
 
         /// <summary>
-        /// Serializes to Json.
+        /// Deserialized from xml collection.
         /// </summary>
+        /// <param name="xml">XML array of events.</param>
+        public static IEnumerable<object> DeserializeXML(string xml)
+        {
+            XDocument doc = XDocument.Parse(xml);
+            string jsonText = JsonConvert.SerializeXNode(doc, Formatting.None, true);
+            return ExtractProperty(JsonConvert.DeserializeObject<ExpandoObject>(jsonText)) as IEnumerable<object>;
+        }
+
+        /// <summary>
+        /// Serializes to Json array.
+        /// </summary>
+        /// <returns>Json array of events.</returns>
         public static string SerializeJson(object obj)
         {
             if (obj is IEnumerable)
@@ -81,10 +116,12 @@ namespace TrackingLibrary
             return JArray.FromObject(new object[] { obj }).ToString();
         }
 
+        /// <summary>
+        /// Deserializes from Json array.
+        /// </summary>
+        /// <param name="json">Json array string.</param>
         public static IEnumerable<object> DeserializeJson(string json)
         {
-            //return (JArray.Parse(json) as IEnumerable)
-            //    .Cast<object>();
             var o = JsonConvert.DeserializeObject<ExpandoObject[]>(json);
             return o;
         }
@@ -124,6 +161,32 @@ namespace TrackingLibrary
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Returns the single property of the object
+        /// no matter how deep it is.
+        /// E.g. if the object has only 1 property,
+        /// the property will be taken from this property.
+        /// This methods simply extracts objects from a chain
+        /// of objects with the single property.
+        /// </summary>
+        /// <param name="obj">Object whose properties to extract.</param>
+        private static object ExtractProperty(IDictionary<string, object> obj)
+        {
+            while(obj.Keys.Count == 1)
+            {
+                var propVal = obj.Values.First();
+                if (propVal is IDictionary<string, object> dict)
+                {
+                    obj = dict;
+                }
+                else
+                {
+                    return propVal;
+                }
+            }
+            return obj;
         }
     }
 }

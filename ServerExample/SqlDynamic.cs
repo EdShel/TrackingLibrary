@@ -17,16 +17,29 @@ using System.ComponentModel;
 
 namespace ServerExample
 {
+    /// <summary>
+    /// Provides service for SQL query generation.
+    /// </summary>
     public static class SqlDynamic
     {
-        const string ID_PROP_NAME = "EventRecordId";
 
         #region INSERT
 
-        public static SqlCommand GetInsert(string command, IDictionary<string, object> obj, SqlConnection db)
+        /// <summary>
+        /// Creates SQL command for inserting specific <see cref="ExpandoObject"/>.
+        /// The object must be flattened!
+        /// </summary>
+        /// <param name="tableName">Table name to insert in.</param>
+        /// <param name="obj">Flattened object to insert.</param>
+        /// <param name="db">Db connection to work with. Must be opened before calling this!</param>
+        /// <returns>Command for Inserting this object. Must be executed manually!</returns>
+        public static SqlCommand GetInsert(string tableName, IDictionary<string, object> obj, SqlConnection db)
         {
-            var c = db.CreateCommand();
+            // Create Insert command
+            string command = GetInsertCommand(tableName, obj);
 
+            // Populate its parameters
+            var c = db.CreateCommand();
             foreach (var prop in obj)
             {
                 c.Parameters.Add(new SqlParameter($"@{prop}", prop.Value));
@@ -35,7 +48,14 @@ namespace ServerExample
             return c;
         }
 
-        public static string GetInsertCommand(string tableName, IDictionary<string, object> props)
+        /// <summary>
+        /// Generates SQL INSERT command for this object.
+        /// All the values are replaced with @params
+        /// </summary>
+        /// <param name="tableName">Table to which it must be inserted.</param>
+        /// <param name="props">Flattened object.</param>
+        /// <returns>String with the command.</returns>
+        private static string GetInsertCommand(string tableName, IDictionary<string, object> props)
         {
             var sb = new StringBuilder();
 
@@ -79,39 +99,58 @@ namespace ServerExample
 
         #endregion INSERT
 
+        /// <summary>
+        /// Converts the object to the flatten object with values-types of the
+        /// initial object's properties.
+        /// </summary>
+        /// <param name="obj">Object to be flattened.</param>
         public static IDictionary<string, Type> GetObjectScheme(object obj)
         {
             return Flatten(obj)
                 .ToDictionary(k => k.Key, v => v.Value.GetType());
         }
 
+        /// <summary>
+        /// Flattens the object, in other words, makes all its properties
+        /// and their subproperties (recursively) to be on the same level.
+        /// </summary>
+        /// <param name="obj">Object to be flattened.</param>
+        /// <returns>Simply it's the call of <see cref="Flatten(object)"/>
+        /// but converted to the dictionary instead of the collection
+        /// of key-value properties.</returns>
         public static IDictionary<string, object> ToDictionary(this object obj)
         {
             return Flatten(obj).ToDictionary(
                 k => k.Key, v => v.Value);
         }
 
+        /// <summary>
+        /// Flattens the object, in other words, makes all its properties
+        /// and their subproperties (recursively) to be on the same level.
+        /// </summary>
+        /// <param name="obj">Object to be flattened.</param>
         public static IEnumerable<KeyValuePair<string, object>> Flatten(object obj)
         {
-            if (obj is KeyValuePair<string, object> pair)
-            {
-                yield return pair;
-                yield break;
-            }
-
+            // If this is a collection
             if (obj is IEnumerable en && !(obj is ExpandoObject))
             {
+                // Enumerate it
                 int i = 0;
                 foreach (var el in en)
                 {
+                    // If it's the simple element
                     if (el == null || IsSupportedType(el.GetType()))
                     {
+                        // Just return it
                         yield return new KeyValuePair<string, object>((i++).ToString(), el);
                     }
+                    // Complex object
                     else
                     {
+                        // Flatten it
                         foreach (var elProp in Flatten(el))
                         {
+                            // And return its properties
                             yield return new KeyValuePair<string, object>(
                                 $"{i++}[{elProp.Key}]", elProp.Value);
                         }
@@ -121,22 +160,33 @@ namespace ServerExample
                 yield break;
             }
 
+            // If this is not a dictionary 
             if (!(obj is ExpandoObject))
             {
+                // make it a dictionary.
+                // If you want, you can optimize this
+                // part of code, but I'll leave it this way
+                // in order to KISS
                 obj = ToExpandoObject(obj);
             }
 
+            // Enumerate all the properties
             foreach (var prop in obj as IDictionary<string, object>)
             {
+                // If the property is a simple type
                 var el = prop.Value;
                 if (el == null || IsSupportedType(el.GetType()))
                 {
+                    // Leave it
                     yield return prop;
                 }
+                // The property is a complex type
                 else
                 {
+                    // Flatten it recursively
                     foreach (var elProp in Flatten(el))
                     {
+                        // Return its properties as the properties of this object
                         yield return new KeyValuePair<string, object>(
                             $"{prop.Key}[{elProp.Key}]", elProp.Value);
                     }
@@ -144,6 +194,10 @@ namespace ServerExample
             }
         }
 
+        /// <summary>
+        /// Converts anonymous or any other type
+        /// to the dictionary with properties.
+        /// </summary>
         private static ExpandoObject ToExpandoObject(this object obj)
         {
             IDictionary<string, object> expando = new ExpandoObject();
@@ -156,11 +210,18 @@ namespace ServerExample
             return (ExpandoObject)expando;
         }
 
-        public static string CreateTableCommand(string name, IDictionary<string, Type> scheme)
+        /// <summary>
+        /// Generates create table SQL command.
+        /// </summary>
+        /// <param name="name">Name of the table to create.</param>
+        /// <param name="idCol">PK column name.</param>
+        /// <param name="scheme">Scheme of the table to be created.</param>
+        /// <returns></returns>
+        public static string CreateTableCommand(string name, string idCol, IDictionary<string, Type> scheme)
         {
             var sb = new StringBuilder();
             sb.Append($"CREATE TABLE \"{name}\" (\n");
-            sb.Append($"{ID_PROP_NAME} int PRIMARY KEY");
+            sb.Append($"{idCol} int PRIMARY KEY");
 
             foreach (string prop in scheme.Keys)
             {
@@ -172,6 +233,9 @@ namespace ServerExample
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Checks whether this type can be used in SQL.
+        /// </summary>
         private static bool IsSupportedType(Type t)
         {
             return (t == typeof(string)
@@ -188,6 +252,10 @@ namespace ServerExample
                 || (t == typeof(char[])));
         }
 
+        /// <summary>
+        /// Converts .Net type to the name of the
+        /// associated SQL type.
+        /// </summary>
         private static string TypeToSQL(Type t)
         {
             if (t == typeof(string))
@@ -241,6 +309,13 @@ namespace ServerExample
             return "nvarchar(MAX)";
         }
 
+        /// <summary>
+        /// Checks whether the given table exists in the db.
+        /// </summary>
+        /// <param name="tableName">Name of the table to check.</param>
+        /// <param name="db">Database connetion which must be
+        /// opened before calling this method!</param>
+        /// <returns>Whether the table exists in the db.</returns>
         public static bool IsTableCreated(string tableName, SqlConnection db)
         {
             var command = db.CreateCommand();

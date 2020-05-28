@@ -17,12 +17,7 @@ namespace ServerExample
             var x = new object[] { d, d, d };
 
             Console.WriteLine(ObjectSerializer.SerializeXML(x));
-            var o = SqlDynamic.Flatten(ObjectSerializer.DeserializeJson(ObjectSerializer.SerializeJson(d)));
-
-            foreach(var p in o)
-            {
-                Console.WriteLine($"{p.Key} = {p.Value}");
-            }
+            var o = ObjectSerializer.DeserializeXML(ObjectSerializer.SerializeXML(x));
 
             Console.WriteLine(o);
             //Server server = new Server();
